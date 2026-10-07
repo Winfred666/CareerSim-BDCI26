@@ -65,7 +65,9 @@ Agent 负责读懂事件，Python 负责保存状态、计算符号。以 Leader
 
 ```json
 {
-  "current_event": {"title": "同事求助", "description": "交付在即，同事请你帮忙排查故障。"},
+  "current_event": {"title": "同事求助长链",
+  "history": "在日常开发中，同事求助你帮忙审查代码。你选择：“完成自己的日常开发任务，“绩效产出”+1，“人脉”-1",
+  "description": "交付在即，同事再次请你帮忙排查故障。"},
   "options": [
     {"choice": 1, "action": "帮忙排查"},
     {"choice": 2, "action": "完成自己的关键交付"}
@@ -77,7 +79,7 @@ Agent 负责读懂事件，Python 负责保存状态、计算符号。以 Leader
 }
 ```
 
-同一事件的 `sim-career observe` 原始返回则包含状态数值、会话信息与选项元数据：
+同一事件的 `sim-career observe` 原始返回则包含较为繁杂的状态数值、会话信息与选项元数据：
 
 ```json
 {
@@ -86,7 +88,7 @@ Agent 负责读懂事件，Python 负责保存状态、计算符号。以 Leader
     "time": {"current_month": 7},
     "status": {"level": "L2", "output": 4, "skill": 18, "network": 6, "health": 3, "dignity": 5, "wealth": 2, "energy": 3}
   },
-  "current_event": {"title": "同事求助", "description": "交付在即，同事请你帮忙排查故障。"},
+  "current_event": {"title": "同事求助", "description": "交付在即，同事再次请你帮忙排查故障。"},
   "choices": [
     {"choice": 1, "action": "帮忙排查", "selectable": true},
     {"choice": 2, "action": "完成自己的关键交付", "selectable": true}
@@ -94,8 +96,6 @@ Agent 负责读懂事件，Python 负责保存状态、计算符号。以 Leader
   "events": ""
 }
 ```
-
-脚本承担状态维护与符号计算，Leader 专注于理解事件、在约束下独立选择。文字约束只描述当前状态；必要前情以 `event_history` 补充。
 
 ### 2.2 多专家独立打分，用问卷拆解语义判断
 
