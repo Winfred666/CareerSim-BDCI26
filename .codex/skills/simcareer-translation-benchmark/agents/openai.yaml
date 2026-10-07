@@ -1,0 +1,4 @@
+interface:
+  display_name: "CareerSim Translation Benchmark"
+  short_description: "Run the deterministic Observation Translator benchmark"
+  default_prompt: "Run the CareerSim Observation Translator benchmark and summarize wrong options."

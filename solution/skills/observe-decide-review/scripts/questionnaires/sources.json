@@ -1,0 +1,47 @@
+{
+  "N": {
+    "revision": "generalization-b16-single-question-20261004",
+    "system": "/tmp/career-n-qa-redesign-pqbYHz/N-generalization-20261004/N.md",
+    "system_sha256": "497b879c2ce10bc6065ec9390e14c089cc2cfd01313aea8b8420a0cb347834f2",
+    "script": "/tmp/career-n-qa-redesign-pqbYHz/N-generalization-20261004/run-batch.py",
+    "script_sha256": "e1fd6a5e29698b1ddeeff7a5faf2f9d4f4246dc154eb5c5785d3e067858f2bb8",
+    "adaptation": "Exact b16 flat N rubric, one all-option answer; runner retains shared nested N integer schema, validation, atomic answers and completion receipts. Optional independent three-call median experiment is not deployed.",
+    "questionnaire_sha256": "37ead73b0bb799171405362f0fc13715de880863c461bd61ca9b744f87e197a1",
+    "runtime_evolution": "N.json text is read by the engine and supports the existing one-question prose patch after a public chosen-action direction error."
+  },
+  "S": {
+    "policy": "/tmp/career-s-questionnaire-v93tVS/context-repair/flat-polish-full120/frozen-final120/flat-polish.md",
+    "policy_sha256": "a8e092216cff73ae7836ac4f1ddac7f891f99d0fe0b3a10256c10d8578a1e983",
+    "script": "/tmp/career-s-questionnaire-v93tVS/context-repair/flat-polish-full120/frozen-final120/benchmark.py",
+    "script_sha256": "6280c6caa2c85e99d87840229976302e93a6fbb4606ab975f023ae458ee8d034",
+    "adaptation": "S.py validates all-option answers directly; fixed rubric in translate_S.json, current question in S.json.",
+    "runtime_evolution": "Questions and answer options now load from S.json; public chosen-action log errors allow one question text patch at the next ready. Merge rules and answer values unchanged; R has no true public delta and is not automatically taught.",
+    "questionnaire_sha256": "311690ace52abe5d24e9f1b54c133b01f651a8489ed0cb5887a463558e35242a"
+  },
+  "O": {
+    "revision": "visibility-focus-boundary-v39",
+    "system": "/tmp/career-0EePjb-negative-curate-o/visibility-focus/boundary-iteration/selected/translate_O.md",
+    "system_sha256": "f6618edfa76acc3eada90a9b67e3eb9bded861f6ad04511a25a9c6abc9b36c78",
+    "script": "/tmp/career-0EePjb-negative-curate-o/visibility-focus/boundary-iteration/selected/O.py",
+    "script_sha256": "9bb4ea2a68e2b83ba61d51f943384ae1e5efdc1ebd1fb2f36763fbfa154606ab",
+    "adaptation": "Exact v39 questions, answer options and direction/scale routing. Existing same-question batch transport and scalar fallback retained.",
+    "runtime_evolution": "Questions and answer options now load from O.json; public chosen-action log errors allow one question text patch at the next ready. Merge rules and answer values unchanged; R has no true public delta and is not automatically taught.",
+    "questionnaire_sha256": "759d14d5896d0cb8a5d44a68a7c43e0b6e592ecc7c85eba281584aae96fc2178"
+  },
+  "HW": {
+    "revision": "hw-flat-conservative",
+    "policy": "/tmp/career-hw-flat-fQJsyXtT/hw-flat-conservative/flat-polish.md",
+    "policy_sha256": "c00c1727d22e1b4f51548d135d2eb111b51c197c4a3c00e8a7cee74cdf0204cf",
+    "adaptation": "Route, joint H/W scoring and ordinary-branch H-change confirmation; fixed rubric in translate_HW.json, current questions in HW.json.",
+    "runtime_evolution": "Questions and answer options now load from HW.json; public chosen-action log errors allow one question text patch at the next ready. Merge rules and answer values unchanged; R has no true public delta and is not automatically taught.",
+    "questionnaire_sha256": "0bbea8508e1f2263b749af79779c109a80736ba733dfe3becbddb77876a05438"
+  },
+  "R": {
+    "revision": "positive-repair-p12",
+    "policy": "/tmp/r-flat-conservative/positive-repair-p12/policy.json",
+    "system": "/tmp/r-flat-conservative/positive-repair-p12/system.md",
+    "adaptation": "p12 three-question templates in R.json; stable system instruction in translate_R.json. flat-polish.md in source directory was empty.",
+    "runtime_evolution": "Questions and answer options now load from R.json; public chosen-action log errors allow one question text patch at the next ready. Merge rules and answer values unchanged; R has no true public delta and is not automatically taught.",
+    "questionnaire_sha256": "3388591e1d2345d39b2baf7694d9ba3eff731cad6dcd6a2eda60666197639c48"
+  }
+}

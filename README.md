@@ -39,23 +39,32 @@ make sync
 
 该命令会安装 [career-emulator](https://pypi.org/project/career-emulator/)、`uv`，并同步本项目的全部依赖。
 
+当前固定使用 [WorkSwarm 0.2.8b1（JiuwenSwarm 新包名）](https://github.com/openJiuwen-ai/jiuwenswarm/releases/tag/v0.2.8.beta1)
+及该版本指定的 openJiuwen `8f9f112698d5580b749158b21b1a89a54e16a8f9`（版本号 `0.1.19`），支持 Python 3.11–3.13。
+`jiuwenswarm-*` 命令和 Python 导入名仍保持不变。`uv.lock` 固定完整依赖及官方 wheel 的 SHA256；
+使用 `uv sync --locked` 复现安装，openJiuwen 源码只需首次构建，后续复用 uv 缓存。
+保留并更新了 coach 的兼容补丁；每次 setup 会幂等应用。会话 metadata 原子写入及按 run 隔离 journal 已使用上游实现。
+新环境测试前先执行 `uv run career-emulator update --source distribution --split dev` 初始化开发数据集。
+
 > **建议**：[jiuwenswarm](https://openjiuwen.com/jiuwenswarm) 和 [career-emulator](https://pypi.org/project/career-emulator/) 都通过当前仓库目录的 [uv](https://docs.astral.sh/uv/) 虚拟环境管理，所有命令统一使用 `uv run` 前缀调用。请避免将它们安装到全局 Python 环境或其他虚拟环境中，以免冲突。
 
 ### 2. 配置环境
 
-先把 `.env.example` 复制为 `.env`，填入你的模型配置：
+先把 `.env.example` 复制为 `.env`，填入 API 配置：
 
 ```bash
 cp .env.example .env
 ```
 
-`.env` 文件只需要三个关键变量：
+`.env` 示例包含以下变量：
 
 ```bash
 API_BASE=""
 API_KEY=""
-MODEL_NAME="deepseek-v4-flash"
+MODEL_NAME="deepseek-flash"
 ```
+
+Jiuwen Player 在 coach、play、benchmark 和其他测试中统一使用 `deepseek-flash`。Runner 通过 `JIUWEN_PLAYER_MODEL` 固定模型，`.env` 中的 `MODEL_NAME` 仅保持示例一致，不覆盖它；reload 时也会同步服务进程中的模型配置。
 
 然后运行 setup，它会自动初始化 JiuwenSwarm 命名实例 `career_emu`，并将上述配置写入实例目录：
 
@@ -88,10 +97,35 @@ career_emu   running  58987   /Users/you/.jiuwenswarm-instances/career_emu      
 
 其中 `PORTS` 列的最后一个端口是前端 UI 地址。例如上面 `career_emu` 实例的端口为 `6173`，在浏览器访问 `http://localhost:6173` 即可打开 JiuwenSwarm 网页端界面。
 
-### 4. 玩上一局
+#### 推荐：安装为用户级自动恢复服务
+
+`career_emu` 是承载 AgentServer、Gateway、WebChannel 和 MCP 子进程的命名 JiuwenSwarm 实例。推荐交给 `systemd --user` 管理，避免终端关闭或单个子进程退出导致比赛失败：
+
+```bash
+make service-install
+make service-status
+```
+
+服务会在启动前刷新 MCP 配置，把项目 `.venv/bin` 加入 PATH，并在异常退出后自动重启。查看实时日志：
+
+```bash
+make service-logs
+```
+
+手动重启使用 `make service-restart`；安装服务后不要再同时运行 `make start-jiuwen`，避免两个实例争用端口。
+
+`make play` 会先停止专用服务、删除旧 `.agent_teams` view，再启动服务并创建新团队；因此大幅修改 solution 后也不会沿用旧团队成员、任务或消息。若尚未安装用户服务，先运行 `make service-install`。
+
+### 4. 开始一局新比赛
 
 ```bash
 make play
+```
+
+`make play` 每次都会通过 `new_game` 创建新的比赛 `session_id`，并在安全停止服务后重建专用的 `.agent_teams/team.db`。只做第 1 月协作验收时运行：
+
+```bash
+make play PLAY_ARGS='--stop-after-month 1 --timeout-s 900'
 ```
 
 ### 5. 查看分数
@@ -107,6 +141,33 @@ make score
 ```bash
 make replay
 ```
+
+### Coach 单步控制
+
+若需要在比赛途中逐事件检查 JiuwenSwarm 的表现，可用不暴露给 Player 的旁路
+`career_sim_runner.coach` 控制器。新开的 coach 比赛默认只推进一个事件，之后每次
+显式执行一步；这些命令不会注册为 Career Emulator MCP 工具：
+
+```bash
+make coach-start                              # 输出新的 jiuwen_player_session_id
+make coach-step JIUWEN_PLAYER_SESSION_ID=<id> # 只推进一个事件
+make coach-inspect JIUWEN_PLAYER_SESSION_ID=<id>            # 查看当前题目、近期决策和状态迁移
+make coach-inspect JIUWEN_PLAYER_SESSION_ID=<id> INSPECT_ARGS="-i 2 -j 4"  # 查看第 2 到第 4 轮
+make coach-withdraw JIUWEN_PLAYER_SESSION_ID=<id>           # 撤回最近一次 player step
+make coach-withdraw JIUWEN_PLAYER_SESSION_ID=<id> WITHDRAW_ARGS="--checkpoint-round 12" # 回到指定轮次
+```
+
+`make play` 的原有连续比赛流程保持不变。Coach 控制器的详细参数见
+[`career_sim_runner/coach/README.md`](career_sim_runner/coach/README.md)。
+
+Observation Translator 可用固定顺序的官方事件节点单独评测，不执行任何游戏动作：
+
+```bash
+make translation-benchmark TRANSLATION_BENCHMARK_ARGS="--limit 20"
+```
+
+输出写入 `.career_sim_runner/translation_benchmark/`；详细格式见
+[`career_sim_runner/translation_benchmark/README.md`](career_sim_runner/translation_benchmark/README.md)。
 
 ## 赛题玩法
 
@@ -181,13 +242,13 @@ uv run python -m career_sim_runner validate --submission solution
 .career_sim_runner/career_emu/
   active_install.json        # 当前挂载的提交件
   career_emulator.sqlite3    # 共享状态数据库
-  emulator_logs/             # Career Emulator 日志
+  emulator_logs/             # setup/兼容模式下的默认日志目录
   outputs/
-    <submission_name>/
-      <timestamp>/
-        transcript-*.log     # 对话记录
-        events-*.jsonl       # 结构化事件流
-        score_report.json    # 结局评分报告
+    <solution_name>/<timestamp>/ # 每次运行的 transcript、events、score 与模拟器日志
+      transcript-*.log       # 对话记录
+      events-*.jsonl         # 结构化事件流
+      <session_id>.log       # Career Emulator 模拟器日志
+      score_report.json      # 结局评分报告
 ```
 
 ## 比赛交互方式

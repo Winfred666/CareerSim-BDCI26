@@ -1,0 +1,51 @@
+--- a/jiuwenswarm/server/agent_ws_server.py
++++ b/jiuwenswarm/server/agent_ws_server.py
+@@ -3928,6 +3928,20 @@
+ 
+         params = request.params if isinstance(request.params, dict) else {}
+         target_sid = str(params.get("session_id") or request.session_id or "").strip()
++        # CareerSim tool-boundary rewind is independent of Jiuwen user turns.
++        if params.get("before_tool_call_id"):
++            try:
++                from jiuwenswarm.agents.harness.common.careersim_rewind import rewind_before_tool
++                payload = await rewind_before_tool(self, request.channel_id, target_sid, params)
++                resp = AgentResponse(request_id=request.request_id, channel_id=request.channel_id,
++                                     ok=True, payload=payload, metadata=request.metadata)
++            except Exception as exc:
++                resp = AgentResponse(request_id=request.request_id, channel_id=request.channel_id,
++                                     ok=False, payload={"error": str(exc)}, metadata=request.metadata)
++            wire = encode_agent_response_for_wire(resp, response_id=request.request_id)
++            async with send_lock:
++                await send_wire_payload(ws, wire)
++            return
+         turn_index = params.get("turn_index")
+         compact_summary = params.get("compact_summary") if compact else None
+         direction = str(params.get("direction") or "from").strip() if compact else "from"
+--- a/jiuwenswarm/agents/harness/common/session_ops_service.py
++++ b/jiuwenswarm/agents/harness/common/session_ops_service.py
+@@ -1089,13 +1089,9 @@
+     """Save rebuilt context; commit live sessions without post_run side effects."""
+     try:
+         await context_engine.save_contexts(session)
+-        try:
+-            deep_agent.save_state(session)
+-        except Exception as save_exc:
+-            logger.warning(
+-                "rewind_session_context: deep_agent.save_state failed for %s: %s",
+-                session_id, save_exc,
+-            )
++        # Clear cached planning/tasks as well as their serialized session key.
++        from openjiuwen.harness.schema.state import DeepAgentState
++        deep_agent.save_state(session, DeepAgentState())
+         if is_live_session:
+             # post_run closes the interaction stream and marks the session done;
+             # chat must keep using the same Session object.
+@@ -1180,7 +1176,7 @@
+         "(skipped %d streaming/metadata records) persist=%s live_session=%s",
+         session_id, turn_index, len(context_messages), skipped, persist_ok, is_live_session,
+     )
+-    return True
++    return persist_ok
+ 
+ 
+ def _flush_source_state(deep_agent: "DeepAgent", session_id: str) -> None:

@@ -1,0 +1,23 @@
+[Unit]
+Description=CareerSim JiuwenSwarm instance (career_emu)
+Documentation=https://career-emulator.readthedocs.io/
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=120
+StartLimitBurst=10
+
+[Service]
+Type=simple
+WorkingDirectory=/home/openclaw-svc/Desktop/research/CareerSim/CareerSim-BDCI26
+Environment=PATH=/home/openclaw-svc/Desktop/research/CareerSim/CareerSim-BDCI26/.venv/bin:/home/openclaw-svc/.local/bin:/usr/local/bin:/usr/bin:/bin
+ExecStartPre=/home/openclaw-svc/Desktop/research/CareerSim/CareerSim-BDCI26/.venv/bin/python -m career_sim_runner setup
+ExecStart=/home/openclaw-svc/Desktop/research/CareerSim/CareerSim-BDCI26/.venv/bin/jiuwenswarm-start --name career_emu all
+ExecStop=/home/openclaw-svc/Desktop/research/CareerSim/CareerSim-BDCI26/.venv/bin/jiuwenswarm-start --stop career_emu
+Restart=always
+RestartSec=5
+TimeoutStartSec=120
+TimeoutStopSec=30
+KillMode=control-group
+
+[Install]
+WantedBy=default.target

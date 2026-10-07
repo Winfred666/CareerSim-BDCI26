@@ -1,0 +1,89 @@
+diff --git a/career_sim_runner/setup.py b/career_sim_runner/setup.py
+index 471ff2c..02cb77a 100644
+--- a/career_sim_runner/setup.py
++++ b/career_sim_runner/setup.py
+@@ -1,5 +1,6 @@
+ """Environment setup helpers for the standalone participant runner."""
+ 
++from copy import deepcopy
+ import os
+ import re
+ import shutil
+@@ -86,6 +87,63 @@ def reset_team_runtime() -> Path:
+     raise RuntimeError("career_emu.service restarted but AgentServer did not become reachable within 60s")
+ 
+ 
++
++def configure_silent_team(data: dict, manifest: dict, skills_dir: Path | None) -> None:
++    """Opt-in team-only rail; ordinary submissions retain their normal output."""
++    enabled = manifest.get("silent_team") is True
++    rail_relative = ("observe-decide-review/scripts/silent-team.py" if manifest.get("native_teammates")
++                     else "observe-decide-review/workflows/silent-rail.py")
++    rail_path = skills_dir / rail_relative if skills_dir else None
++    if enabled and (rail_path is None or not rail_path.is_file()):
++        raise ValueError("silent_team requires the installed runtime rail")
++    top_agents = data.get("agents") or {}
++    for team in ((data.get("modes") or {}).get("team") or {}).values():
++        if not isinstance(team, dict):
++            continue
++        if manifest.get("native_teammates"):
++            team["enable_swarmflow"] = False
++            team.pop("swarmflow_concurrency", None)
++            team["dispatch_mode"] = "scheduled"
++            team["enable_hitt"] = False
++            team["enable_task_verification"] = False
++        agents = team.get("agents") or {}
++        if enabled:
++            agents = deepcopy(agents)
++            agents.setdefault("leader", {})
++            agents.setdefault("teammate", {})
++            team["agents"] = agents
++        for role, spec in list(agents.items()):
++            if enabled and isinstance(spec, str) and spec.startswith("$"):
++                spec = deepcopy(top_agents.get(spec[1:], {}))
++                agents[role] = spec
++            if not isinstance(spec, dict):
++                continue
++            rails = list(spec.get("rails") or [])
++            kept = [r for r in rails if not (isinstance(r, dict)
++                    and r.get("type") == "harness.rail.file"
++                    and (r.get("params") or {}).get("class_name") == "SilentTeamRail")]
++            previous = next(((r.get("params") or {}).get("restore", {}) for r in rails
++                             if isinstance(r, dict) and (r.get("params") or {}).get("class_name") == "SilentTeamRail"), {})
++            for key, old in previous.items():
++                if old["present"]:
++                    spec[key] = old["value"]
++                else:
++                    spec.pop(key, None)
++            if enabled:
++                restore = {}
++                lean = manifest.get("lean_team") is True
++                if lean:
++                    settings = {"prompt_mode": "minimal", "enable_task_loop": False,
++                                "enable_task_planning": False, "max_iterations": 10000 if role == "leader" else 256}
++                    restore = {key: {"present": key in spec, "value": spec.get(key)} for key in settings}
++                    spec.update(settings)
++                kept.append({"type": "harness.rail.file", "params": {
++                    "file_path": str(rail_path.resolve()), "class_name": "SilentTeamRail",
++                    "role": "leader" if role == "leader" else "worker", "lean": lean, "restore": restore}})
++            if enabled or kept != rails:
++                spec["rails"] = kept
++
++
+ def ensure_instance_configured(log_dir: Path | None = None, *, coach_gate: Path | None = None,
+                                db_path: Path | None = None) -> Path:
+     """Write the required MCP server entry into the named instance config.
+@@ -122,6 +180,13 @@ def ensure_instance_configured(log_dir: Path | None = None, *, coach_gate: Path
+             for team_config in team_modes.values():
+                 if isinstance(team_config, dict):
+                     team_config["enable_swarmflow"] = bool(manifest["enable_swarmflow"])
++                    if "swarmflow_agents_per_run" in manifest:
++                        capacity = manifest["swarmflow_agents_per_run"]
++                        if type(capacity) is not int or capacity < 1:
++                            raise ValueError("swarmflow_agents_per_run must be a positive integer")
++                        team_config.setdefault("swarmflow_concurrency", {})["agents_per_run"] = capacity
++    installed_skills = getattr(active_install, "skill_dir", None)
++    configure_silent_team(data, manifest, Path(installed_skills) if installed_skills else None)
+     mcp = data.setdefault("mcp", {})
+     is_available = tool_availability()
+     cwd = cast(str, is_available["path"])

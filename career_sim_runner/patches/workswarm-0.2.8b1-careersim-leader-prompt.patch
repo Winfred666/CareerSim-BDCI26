@@ -1,0 +1,12 @@
+--- a/jiuwenswarm/agents/harness/team/config_loader.py
++++ b/jiuwenswarm/agents/harness/team/config_loader.py
+@@ -419,6 +419,9 @@
+         or "TeamLeader"
+     )
+     return {
++        # Preserve the leader's private working agreement during cold bootstrap.
++        "prompt": leader_raw.get("prompt", ""),
++        "desc": leader_raw.get("desc", ""),
+         "member_name": leader_raw.get("member_name", "team_leader"),
+         "display_name": leader_raw.get("display_name", "Team Leader"),
+         "name": leader_name,

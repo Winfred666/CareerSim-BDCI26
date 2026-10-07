@@ -1,0 +1,24 @@
+============================= test session starts ==============================
+platform linux -- Python 3.11.15, pytest-9.0.3, pluggy-1.6.0
+rootdir: /home/openclaw-svc/Desktop/CareerSim/CareerSim-BDCI26
+configfile: pyproject.toml
+plugins: mock-3.15.1, anyio-4.13.0, asyncio-1.4.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=function, asyncio_default_test_loop_scope=function
+collected 12 items
+
+.career_sim_runner/solution_no_translation/validation/test_ablation.py . [  8%]
+...                                                                      [ 33%]
+.career_sim_runner/solution_no_translation/validation/test_silent_boundary.py . [ 41%]
+.......                                                                  [100%]
+
+=============================== warnings summary ===============================
+.career_sim_runner/solution_no_translation/validation/test_ablation.py::test_real_engine_three_workers_wait_receipts_terminal
+  /home/openclaw-svc/Desktop/CareerSim/CareerSim-BDCI26/.venv/lib/python3.11/site-packages/openjiuwen/core/common/clients/connector_pool.py:17: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class ConnectorPoolConfig(BaseModel):
+
+.career_sim_runner/solution_no_translation/validation/test_ablation.py::test_real_engine_three_workers_wait_receipts_terminal
+  /home/openclaw-svc/Desktop/CareerSim/CareerSim-BDCI26/.venv/lib/python3.11/site-packages/openjiuwen/core/common/clients/http_client.py:21: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.13/migration/
+    class SessionConfig(BaseModel):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================== 12 passed, 2 warnings in 4.42s ========================

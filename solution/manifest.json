@@ -1,6 +1,6 @@
 {
-  "team": "enter your team name here",
-  "name": "dummy-solution",
-  "mode": "agent",
-  "instruction": "Use my skills, they are awesome"
+  "team": "winfred",
+  "name": "observe-decide-review",
+  "mode": "team",
+  "instruction": "先调用一次 skill_tool(skill_name=\"observe-decide-review\")，直接按其返回的技能内容和 skill_directory 初始化，不先用 read_file 读取技能。使用普通 teammate 按角色协作。Leader 和所有 teammate 只按角色文档执行脚本，不读取脚本源码。只调用工具，结果存文件；按技能循环，结构化终局时结束；等待错误按技能重发未完成角色后继续，其他错误停止。"
 }

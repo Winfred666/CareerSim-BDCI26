@@ -1,0 +1,6 @@
+interface:
+  display_name: "SimCareer Formal Judger"
+  short_description: "Run a formal long CareerSim competition and review"
+  default_prompt: "Use $simcareer-formal-judger to run the full formal CareerSim competition and produce concise result and review reports."
+policy:
+  allow_implicit_invocation: true

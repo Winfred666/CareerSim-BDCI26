@@ -40,19 +40,19 @@ def install_submission(
     label = str(details["submission_name"])
     resolved_skills_dir = skills_dir or jiuwenswarm_skills_dir()
 
-    # Clean up
+    # Reset submission scratch data only. The running host owns sessions and
+    # .agent_teams (including an open SQLite database and its WAL/SHM files).
+    # Removing those paths here invalidates pooled connections and breaks
+    # teammate creation. Fresh plays already use unique conversation ids.
     todo_dir = resolved_skills_dir.with_name("todo")
     hist_dir = resolved_skills_dir.with_name(".agent_history")
-    session_dir = resolved_skills_dir.parent.with_name("sessions")
-    team_dir = session_dir.parent.with_name(".agent_teams")
     mem_dir = resolved_skills_dir.with_name("memory")
-    for file in chain(
-        todo_dir.glob("*"), hist_dir.glob("*"), session_dir.glob("*"), team_dir.glob("*"), mem_dir.glob("*.md")
-    ):
+    for file in chain(todo_dir.glob("*"), hist_dir.glob("*"), mem_dir.glob("*.md")):
         if file.is_file():
             os.remove(file)
         elif file.is_dir():
             shutil.rmtree(file)
+    mem_dir.mkdir(parents=True, exist_ok=True)
     (mem_dir / "MEMORY.md").write_text(MEMORY_MD_CONTENT)
 
     _reset_skills_workspace(resolved_skills_dir)

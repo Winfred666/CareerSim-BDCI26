@@ -1,0 +1,13 @@
+--- a/openjiuwen/agent_teams/harness/team_harness.py
++++ b/openjiuwen/agent_teams/harness/team_harness.py
+@@ -336,7 +336,9 @@
+         (which accepts abort/pause) from one that was never started or already
+         torn down (which would raise in ``_require_alive``).
+         """
+-        return self._native is not None and self._active_agent_session is not None
++        # A stopped native can retain its session until asynchronous teardown commits.
++        return (self._native is not None and self._active_agent_session is not None
++                and self._native.state is not HarnessState.TERMINATED)
+ 
+     async def subscribe(
+         self,

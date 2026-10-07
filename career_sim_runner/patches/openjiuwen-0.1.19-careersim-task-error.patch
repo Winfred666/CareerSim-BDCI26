@@ -1,0 +1,12 @@
+--- a/openjiuwen/harness/task_loop/task_loop_event_handler.py
++++ b/openjiuwen/harness/task_loop/task_loop_event_handler.py
+@@ -566,7 +566,8 @@
+         )
+ 
+         self._resolve_future(
+-            {"error": str(error_msg)}, round_id,
++            {"error": str(error_msg), "result_type": "error",
++             "output": str(error_msg)}, round_id,
+         )
+ 
+         return {

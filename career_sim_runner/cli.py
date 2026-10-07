@@ -29,6 +29,7 @@ from career_sim_runner.score import build_score_report, write_score_report
 from career_sim_runner.setup import (
     ensure_instance_configured,
     resolve_instance_ws_url,
+    reset_team_runtime,
     setup_summary,
     tool_availability,
 )
@@ -86,6 +87,7 @@ def _parse_args() -> argparse.Namespace:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     subparsers.add_parser("setup", help="Show setup paths, tools, and recommended config")
+    subparsers.add_parser("reset-team", help="Delete the host team view and start a fresh team runtime")
 
     validate_parser = subparsers.add_parser("validate", help="Validate submission and local environment")
     validate_parser.add_argument("--submission", required=True, help="Submission directory containing skills/")
@@ -100,6 +102,13 @@ def _parse_args() -> argparse.Namespace:
     play_parser.add_argument("--ws-url", default="")
     play_parser.add_argument("--db", default=str(default_db_path()))
     play_parser.add_argument("--timeout-s", type=float, default=DEFAULT_TIMEOUT_S)
+    play_parser.add_argument(
+        "--stop-after-month",
+        type=int,
+        choices=range(1, 49),
+        metavar="N",
+        help="Stop a development test after month N and its result review",
+    )
     play_parser.add_argument(
         "--continue",
         dest="continue_run",
@@ -158,6 +167,11 @@ def main() -> int:
         )
         return 0
 
+    if args.command == "reset-team":
+        team_dir = reset_team_runtime()
+        print(f"fresh_team_runtime: {team_dir}")
+        return 0
+
     if args.command == "validate":
         resolved_ws_url = args.ws_url or resolve_instance_ws_url()
         validation_report = validate_all(Path(args.submission), ws_url=resolved_ws_url, db_path=Path(args.db))
@@ -182,6 +196,7 @@ def main() -> int:
             timeout_s=args.timeout_s,
             continue_run=args.continue_run,
             on_event=observer.feed if observer else None,
+            stop_after_month=args.stop_after_month,
         )
         if observer is not None:
             observer.finish()

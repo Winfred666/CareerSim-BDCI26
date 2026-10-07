@@ -1,0 +1,33 @@
+--- a/jiuwenswarm/agents/harness/team/team_manager.py
++++ b/jiuwenswarm/agents/harness/team/team_manager.py
+@@ -1025,9 +1025,29 @@
+         team_name = str(metadata.get("team_name") or "").strip()
+         if team_name:
+             return team_name
++
++        # Rewind may rebuild an empty host history after cancel has already
++        # cleared the in-memory active/pending maps.  The persisted binding is
++        # still the authoritative session-to-team ownership record.
++        try:
++            from jiuwenswarm.server.runtime.team_binding_store import get_team_binding_store
++
++            matches = [
++                binding.team_name
++                for binding in get_team_binding_store().list()
++                if session_id in binding.session_ids
++            ]
++            if len(matches) == 1:
++                return matches[0]
++        except Exception as exc:  # noqa: BLE001
++            logger.warning(
++                "[TeamManager] failed to read delete team binding: session_id=%s error=%s",
++                session_id,
++                exc,
++            )
+ 
+         logger.warning(
+-            "[TeamManager] failed to resolve delete team_name from metadata: session_id=%s",
++            "[TeamManager] failed to resolve delete team_name from metadata/binding: session_id=%s",
+             session_id,
+         )
+         return None

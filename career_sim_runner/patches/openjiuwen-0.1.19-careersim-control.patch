@@ -1,0 +1,224 @@
+--- a/openjiuwen/agent_teams/workflow/engine/budget.py
++++ b/openjiuwen/agent_teams/workflow/engine/budget.py
+@@ -39,10 +39,18 @@
+     spent: int = 0
+     phase_tokens: dict[str, int] = field(default_factory=dict)
+ 
+-    def add(self, tokens: int) -> None:
++    _spent_by_scope: dict[str, int] = field(default_factory=dict, repr=False)
++
++    def add(self, tokens: int, *, scope: str | None = None) -> None:
+         """Report ``tokens`` consumed. Non-positive values are ignored."""
+         if tokens > 0:
+             self.spent += tokens
++            if scope:
++                self._spent_by_scope[scope] = self._spent_by_scope.get(scope, 0) + tokens
++
++    def spent_for(self, scope: str) -> int:
++        """Return usage attributed to one concurrent workflow run."""
++        return self._spent_by_scope.get(scope, 0)
+ 
+     def add_phase(self, phase: str, tokens: int | None) -> None:
+         """Tally ``tokens`` under ``phase`` (``_check_budget``'s top-3 source).
+--- a/openjiuwen/agent_teams/workflow/backends/budget_rail.py
++++ b/openjiuwen/agent_teams/workflow/backends/budget_rail.py
+@@ -42,9 +42,10 @@
+     #: cannot pay for should be refused before anything else prepares for it.
+     priority: int = 950
+ 
+-    def __init__(self, budget: BudgetLedger, workflow_budget: BudgetLedger | None = None) -> None:
++    def __init__(self, budget: BudgetLedger, workflow_budget: BudgetLedger | None = None, *, scope: str | None = None) -> None:
+         super().__init__()
+         self._budget = budget
++        self._scope = scope
+         self._wf_budget = workflow_budget
+         self.call_tokens: int = 0
+ 
+@@ -65,7 +66,7 @@
+         tokens = _usage_tokens(inputs.response)
+         if tokens > 0:
+             self.call_tokens += tokens
+-            self._budget.add(tokens)            # session-wide (nested double-count)
++            self._budget.add(tokens, scope=self._scope)            # session-wide (nested double-count)
+             if self._wf_budget is not None:
+                 self._wf_budget.add(tokens)     # per-run (same tokens, second ledger)
+         self._stop_if_exhausted(ctx, "after")
+--- a/openjiuwen/agent_teams/workflow/backends/team_worker_backend.py
++++ b/openjiuwen/agent_teams/workflow/backends/team_worker_backend.py
+@@ -100,6 +100,8 @@
+         build_context: Optional ``BuildContext`` forwarded to the worker harness
+             build (worker specs carry no team rails, so this is usually unused).
+     """
++
++    KNOWN_OPTIONS = frozenset({"cwd"})
+ 
+     def __init__(
+         self,
+@@ -176,7 +178,7 @@
+         # One rail per call: it bills this worker's model calls to the run's
+         # shared ledger (and cuts the worker short once that ledger is dry),
+         # while its own tally is what this ``agent()`` call reports as its cost.
+-        budget_rail = SwarmflowBudgetRail(self.budget, workflow_budget=self.workflow_budget)
++        budget_rail = SwarmflowBudgetRail(self.budget, workflow_budget=self.workflow_budget, scope=self._run_id)
+         try:
+             await self._worktrees.ensure(member_name, opts)
+             if schema_json is not None:
+@@ -191,6 +193,7 @@
+                     has_schema=True,
+                     model=model,
+                     budget_rail=budget_rail,
++                    worker_options=opts,
+                 )
+                 if not (submit_tool.called and submit_tool.captured is not None):
+                     raise BackendError(
+@@ -210,6 +213,7 @@
+                 has_schema=False,
+                 model=model,
+                 budget_rail=budget_rail,
++                worker_options=opts,
+             )
+             return AgentResult(text=text, tokens=budget_rail.call_tokens)
+         except Exception as e:
+@@ -349,6 +353,7 @@
+         has_schema: bool,
+         model: Any,
+         budget_rail: SwarmflowBudgetRail | None = None,
++        worker_options: dict | None = None,
+     ) -> str:
+         """Build a worker ``TeamHarness`` and run it for one execution.
+ 
+@@ -396,7 +401,7 @@
+                 description="swarmflow worker",
+             )
+             # Worker gets its own workspace, not the teammate's.
+-            worker_workspace, worker_cwd = self._setup_worker_workspace(member_name)
++            worker_workspace, worker_cwd = self._setup_worker_workspace(member_name, worker_options)
+             worker_spec = worker_spec.model_copy(update={"workspace": worker_workspace, "cwd": worker_cwd})
+             worker_spec = self._apply_worker_skill_visibility(worker_spec, member_name)
+             worker_build_context = derive_member_build_context(
+@@ -461,7 +466,7 @@
+     # Worker workspace setup
+     # ------------------------------------------------------------------
+ 
+-    def _setup_worker_workspace(self, member_name: str) -> tuple[WorkspaceSpec, str | None]:
++    def _setup_worker_workspace(self, member_name: str, opts: dict | None = None) -> tuple[WorkspaceSpec, str | None]:
+         """Compute, link, and mount the worker's independent workspace.
+ 
+         Mirrors the layout used by ``agent_configurator`` for stable_base
+@@ -485,7 +490,19 @@
+             isolated, else ``None`` meaning "use the workspace root").
+         """
+         worktree = self._worktrees.get(member_name)
++        requested_cwd = str((opts or {}).get("cwd") or "").strip()
++        if worktree is not None and requested_cwd:
++            raise BackendError("agent options 'cwd' and 'isolation' cannot be combined")
+         worker_cwd = worktree.worktree_path if worktree is not None else None
++        if requested_cwd:
++            if requested_cwd != "team_skills":
++                raise BackendError("agent option 'cwd' must be 'team_skills'")
++            from openjiuwen.agent_teams.paths import team_home
++
++            team_skills = team_home(self._team_name) / "team-workspace" / "skills"
++            if not team_skills.is_dir():
++                raise BackendError("current team skills directory does not exist")
++            worker_cwd = str(team_skills)
+         ws_root = self._member_workspace_root(member_name)
+ 
+         if self._worker_base_spec.workspace is not None:
+--- a/openjiuwen/agent_teams/workflow/backends/avatar_session_backend.py
++++ b/openjiuwen/agent_teams/workflow/backends/avatar_session_backend.py
+@@ -243,7 +243,7 @@
+             spec_base=base,
+             instructions=instructions,
+             member_name=member_name,
+-            budget_rail=SwarmflowBudgetRail(self._budget, workflow_budget=self._workflow_budget),
++            budget_rail=SwarmflowBudgetRail(self._budget, workflow_budget=self._workflow_budget, scope=self._run_id),
+             session_id=self._derive_avatar_session_id(member_name),
+         )
+         self._sessions[member_name] = state
+--- a/openjiuwen/agent_teams/workflow/tool_swarmflow.py
++++ b/openjiuwen/agent_teams/workflow/tool_swarmflow.py
+@@ -342,6 +342,7 @@
+             ticket=ticket,
+             agent_gate=admission.agent_gate,
+         )
++        enriched["_stream_session"] = kwargs.get("session")
+         run_id = enriched[_RUN_ID_INPUT_KEY]
+         completion_ctx = enriched[_COMPLETION_CTX_KEY]
+         task_id = generate_id(self.card.name)
+@@ -552,7 +553,9 @@
+         from openjiuwen.agent_teams.workflow.observer import WorkflowObserver
+         from openjiuwen.agent_teams.workflow.runner import run_swarmflow
+ 
++        stream_session = inputs.get("_stream_session")
+         run_id = inputs[_RUN_ID_INPUT_KEY]
++        usage_before = self._budget.spent_for(run_id) if self._budget is not None else 0
+         agent_gate = inputs[_AGENT_GATE_KEY]
+         ticket = inputs[_WORKFLOW_TICKET_KEY]
+         completion_ctx = inputs.get(_COMPLETION_CTX_KEY) or {}
+@@ -739,10 +742,61 @@
+                 )
+             raise
+         finally:
+-            if controller is not None:
+-                controller.deregister(run_id)
+-            if self._governor is not None:
+-                await self._governor.release_workflow(ticket)
++            usage_after = self._budget.spent_for(run_id) if self._budget is not None else 0
++            try:
++                await self._emit_usage(stream_session, run_id=run_id, task_id=task_id,
++                                       total_tokens=max(0, usage_after - usage_before))
++            finally:
++                if controller is not None:
++                    controller.deregister(run_id)
++                if self._governor is not None:
++                    await self._governor.release_workflow(ticket)
++
++    @staticmethod
++    async def _emit_usage(
++        session: Any,
++        *,
++        run_id: str,
++        task_id: str,
++        total_tokens: int,
++    ) -> None:
++        """Expose one workflow segment's worker usage on the outer chat stream.
++
++        Worker harnesses are intentionally non-streaming, so their provider
++        usage never reaches the player WebSocket. The shared budget ledger has
++        already counted every returned model call; publishing one synthetic
++        ``llm_usage`` chunk here makes that exact total observable without
++        changing the workflow's business result or waking the leader.
++        """
++        if session is None or total_tokens <= 0:
++            return
++        from openjiuwen.core.session.stream import OutputSchema
++
++        payload = {
++            "usage_metadata": {
++                "model_name": "swarmflow-workers",
++                "input_tokens": 0,
++                "output_tokens": 0,
++                "total_tokens": total_tokens,
++                "cache_tokens": 0,
++                "input_cost": 0.0,
++                "output_cost": 0.0,
++                "total_cost": 0.0,
++            },
++            "member_name": "swarmflow-workers",
++            "role": "swarmflow-workers",
++            "run_id": run_id,
++            "usage_id": f"swarmflow:{task_id}",
++        }
++        try:
++            await asyncio.shield(
++                session.write_stream(OutputSchema(type="llm_usage", index=0, payload=payload))
++            )
++        except Exception:  # noqa: BLE001 - accounting must not break the workflow result
++            team_logger.warning(
++                "[swarmflow] failed to publish worker usage for %s", run_id, exc_info=True
++            )
++
+ 
+     def relaunch(self, inputs: dict[str, Any], session_id: str) -> None:
+         """Re-launch the paused swarmflow with the SAME inputs (resume path).

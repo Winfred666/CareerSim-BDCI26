@@ -150,6 +150,7 @@ activemq-data/
 # Environments
 .env
 .envrc
+.env.*
 .venv
 env/
 venv/
@@ -219,7 +220,20 @@ __marimo__/
 
 # Env vars
 .env
+.env.test
+.env.example
+.env.production
+
+.codex/*
+!.codex/skills/
 
 # Output & submission for CareerSim-BDCI26
 .career_sim_runner/
-solution/
+
+# Local parallel runtime worktree
+parallel_session/
+
+# JiuwenSwarm runtime file operation logs
+.agent_history/
+
+debugs/

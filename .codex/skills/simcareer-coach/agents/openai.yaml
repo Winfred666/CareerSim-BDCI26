@@ -1,0 +1,4 @@
+interface:
+  display_name: "CareerSim Main Coach"
+  short_description: "Single-agent CareerSim coaching and iteration"
+  default_prompt: "Use $simcareer-coach as the sole main coach to inspect and improve the CareerSim solution one event at a time without sub-agents."

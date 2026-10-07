@@ -17,7 +17,7 @@ from career_sim_runner.paths import (
     timestamped_output_dir,
 )
 from career_sim_runner.score import build_score_report, write_score_report
-from career_sim_runner.setup import resolve_instance_ws_url
+from career_sim_runner.setup import ensure_instance_configured, resolve_instance_ws_url
 from career_sim_runner.transcript import EventCallback
 from career_sim_runner.validate import validate_environment, validate_submission
 from career_sim_runner.ws_client import (
@@ -85,6 +85,7 @@ async def play_headless(
     timeout_s: float = DEFAULT_TIMEOUT_S,
     continue_run: bool = False,
     on_event: EventCallback | None = None,
+    stop_after_month: int | None = None,
 ) -> tuple[ScoreReport, Path]:
     """Install, drive, and score one participant submission.
 
@@ -104,7 +105,6 @@ async def play_headless(
             details = "; ".join(check.detail for check in submission_report.checks if not check.ok)
             raise RuntimeError(details)
         install_record = install_submission(submission_dir=submission_dir, skills_dir=jiuwenswarm_skills_dir())
-        assert await reload_agent_config(resolved_ws_url), "Failed to reload JiuwenSwarm agent config!"
     else:
         loaded_install = load_active_install()
         if loaded_install is None:
@@ -130,6 +130,14 @@ async def play_headless(
         output_dir = timestamped_output_dir(install_record.submission_name)
         prompt = build_play_prompt()
 
+    # The simulator reads CAREER_EMULATOR_LOG_DIR when its MCP subprocess is
+    # started.  Select the run directory first, then write it into the
+    # instance config and reload JiuwenSwarm so all simulator logs land beside
+    # this run's transcript/events/score artifacts.
+    output_dir.mkdir(parents=True, exist_ok=True)
+    ensure_instance_configured(log_dir=output_dir)
+    assert await reload_agent_config(resolved_ws_url), "Failed to reload JiuwenSwarm agent config!"
+
     store_last_output_dir(output_dir)
     mode = resolve_run_mode(install_record)
     drive_result = await drive(
@@ -140,6 +148,7 @@ async def play_headless(
         timeout_s=timeout_s,
         log_dir=output_dir,
         on_event=on_event,
+        stop_after_month=stop_after_month,
     )
     report = await build_score_report(
         install_record=install_record,
@@ -164,6 +173,7 @@ def main(
     timeout_s: float = DEFAULT_TIMEOUT_S,
     continue_run: bool = False,
     on_event: EventCallback | None = None,
+    stop_after_month: int | None = None,
 ) -> tuple[ScoreReport, Path]:
     """Sync entrypoint for headless play."""
     return asyncio.run(
@@ -174,5 +184,6 @@ def main(
             timeout_s=timeout_s,
             continue_run=continue_run,
             on_event=on_event,
+            stop_after_month=stop_after_month,
         )
     )

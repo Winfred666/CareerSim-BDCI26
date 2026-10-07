@@ -1,0 +1,4 @@
+interface:
+  display_name: "CareerSim Notebook Sync"
+  short_description: "审计 notebooks，并只读诊断 Swarm evolution 摩擦"
+  default_prompt: "Use $simcareer-notebook-sync to audit non-keep runtime notebooks for approval and discuss solution improvements supported by read-only evolutions.json evidence."

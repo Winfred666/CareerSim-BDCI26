@@ -1,0 +1,16 @@
+--- a/openjiuwen/harness/rails/model_anomaly_detection_rail.py
++++ b/openjiuwen/harness/rails/model_anomaly_detection_rail.py
+@@ -394,6 +394,13 @@
+     async def after_invoke(self, ctx: AgentCallbackContext) -> None:
+         self._reset_tool_loop_compact_counter(ctx)
+ 
++    async def after_model_call(self, ctx: AgentCallbackContext) -> None:
++        """Successful calls replenish the consecutive-failure retry budget."""
++        if ctx.exception is None:
++            self.repeat_retry_count = 0
++            self.stream_timeout_retry_count = 0
++            self.transient_retry_count = 0
++
+     async def before_model_call(self, ctx: AgentCallbackContext) -> None:
+         """Compact tool loops (if needed) and install a stream chunk inspector."""
+         self._maybe_compact_or_bailout_tool_loop(ctx)

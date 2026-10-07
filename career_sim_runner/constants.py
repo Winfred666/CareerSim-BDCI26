@@ -1,19 +1,28 @@
 """Shared constants for the standalone participant runner."""
 
+import json
+import os
+import re
 from pathlib import Path
 
-RUNNER_PACKAGE_DIR: Path = Path(__file__).resolve().parent
-REPO_ROOT: Path = RUNNER_PACKAGE_DIR.parent
-DEFAULT_INSTANCE_NAME: str = "career_emu"
+# Keep the importing worktree path when the package itself is a symlink.
+RUNNER_PACKAGE_DIR: Path = Path(__file__).absolute().parent
+REPO_ROOT: Path = Path(os.environ.get("CAREER_SIM_REPO_ROOT", RUNNER_PACKAGE_DIR.parent)).absolute()
+_instance_file = REPO_ROOT / ".career-instance.json"
+_instance_config = json.loads(_instance_file.read_text()) if _instance_file.is_file() else {}
+DEFAULT_INSTANCE_NAME: str = os.environ.get("CAREER_SIM_INSTANCE_NAME") or _instance_config.get("instance_name", "career_emu")
+if not re.fullmatch(r"[a-zA-Z0-9_-]+", DEFAULT_INSTANCE_NAME):
+    raise ValueError("Invalid CareerSim instance name")
 INSTANCES_ROOT: Path = Path.home() / ".jiuwenswarm-instances"
 INSTANCE_ROOT: Path = INSTANCES_ROOT / DEFAULT_INSTANCE_NAME
 RUNTIME_ROOT: Path = REPO_ROOT / ".career_sim_runner" / DEFAULT_INSTANCE_NAME
 DEFAULT_DB_PATH: Path = RUNTIME_ROOT / "career_emulator.sqlite3"
 DEFAULT_EMULATOR_LOG_DIR: Path = RUNTIME_ROOT / "emulator_logs"
 DEFAULT_RUNS_DIR: Path = RUNTIME_ROOT / "runs"
-DEFAULT_OUTPUT_ROOT: Path = RUNTIME_ROOT / "outputs"
+DEFAULT_OUTPUT_ROOT: Path = REPO_ROOT / ".career_sim_runner" / "career_emu" / "outputs"
 DRIVE_SESSION_PREFIX: str = "career-sim-runner"
 DEFAULT_TIMEOUT_S: float = 7200.0
+JIUWEN_PLAYER_MODEL: str = "deepseek-flash"
 
 JWS_DATA_DIR_ENV: str = "JIUWENSWARM_DATA_DIR"
 ACTIVE_INSTALL_FILE: str = "active_install.json"
