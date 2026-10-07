@@ -7,38 +7,61 @@
 ## 2. 我们的方法
 
 ```mermaid
-flowchart TB
-    E["当前事件与前情"] --> V{"官方已给数值？"}
-    V -->|有| P
-    V -->|无| T
+flowchart TD
+    A([🎮 游戏 API：observe]) -->|返回当前事件| B
 
-    T["多专家并行作答引导问卷<br/>O 绩效 · N 人脉 · S 技能<br/>HW 健康与财富 · R 隐患"]
-    T -->|结构化指标预测| P["Python 符号决策<br/>红线保护 · 封顶折价 · 晋升前瞻 · 季度规划"]
-    P --> C{"误差扰动后<br/>推荐仍稳定？"}
+    B{"事件类型？\n脚本判断*"}
+    B -->|官方已提供数值| C[直接进入决策\n跳过翻译阶段*]
+    B -->|需语义翻译| D
 
-    C -->|稳定| A["推荐选项 + notes<br/>Leader 原样执行"]
-    C -->|不稳定或结构性死局| B["原题 + 前情 + 当前状态约束<br/>Leader 独立纠偏"]
-    A --> X["执行行动"]
-    B --> X
-    X --> R["脚本复核实际变化<br/>保存状态与误判历史"]
-    R --> E
-    R -.->|归纳重复误判，修订问卷<br/>自进化收益未验证| T
+    D[Leader 并行派发翻译任务\n每个 teammate 收到独立 DM]
 
-    classDef semantic fill:#ede9fe,stroke:#7c3aed,color:#3b0764
-    classDef symbolic fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
-    classDef route fill:#fef3c7,stroke:#d97706,color:#78350f
-    classDef action fill:#dcfce7,stroke:#16a34a,color:#14532d
-    class T semantic
-    class P,R symbolic
-    class V,C,B route
-    class A,X action
+    D --> E1[translate-o\nOutput 指标\n🤖 Agent]
+    D --> E2[translate-n\nNetwork 指标\n🤖 Agent]
+    D --> E3[translate-s\nSkill 指标\n🤖 Agent]
+    D --> E4[translate-hw\nHealth/Wealth 指标\n🤖 Agent]
+    D --> E5[translate-r\nRisk 指标\n🤖 Agent]
+
+    E1 & E2 & E3 & E4 & E5 -->|各自将结果写入文件| F
+
+    F[等待全部翻译完成\n汇总各选项预测指标变化*]
+
+    F --> G[读取决策包\n红线状态、晋升缺口\n考核前瞻与季度搜索*]
+    C --> G
+
+    G --> H{"结构死局判定 + 决策置信度估计*"}
+    H -->|结构性死局\n或决策稳定率低于 0.5| I
+
+    I[语义纠偏模式\n返回原题、前情与状态约束\n不含预测增量与推荐编号\n🤖 Leader 依据完整文本独立判断]
+
+    H -->|推荐决策可靠| J[红线过滤\nH≤3 / D≤3 / W≤2 禁减*]
+
+    J --> K[多目标排序\n压R→补低指标→补晋升短板→正增益*]
+
+    K --> L([输出推荐编号与 notes\n🤖 Leader 原样执行行动])
+    I --> L
+
+    L --> M[读取行动日志\n写入复核记录*]
+    M --> A
+
+    style E1 fill:#dbeafe,stroke:#3b82f6
+    style E2 fill:#dbeafe,stroke:#3b82f6
+    style E3 fill:#dbeafe,stroke:#3b82f6
+    style E4 fill:#dbeafe,stroke:#3b82f6
+    style E5 fill:#dbeafe,stroke:#3b82f6
+    style I fill:#fef3c7,stroke:#f59e0b
+    style L fill:#d1fae5,stroke:#10b981
 ```
 
 完整设计见[方案设计](solution/design/skills_design.md)与[逐轮决策报告](solution/design/decision_report.md)。
 
+关键 Hacking 技巧: 正常的 team 模式不会清除 teammate 即各专家上下文，一局比赛会造成 > 100 元 deepseek-flash token，按此测试优化将照成超越比赛奖金的花费。因此每个事件都用脚本引导 Leader 运用允许的工具，关闭所有 teammate 并重新建队。
+
+关键迭代策略：teammate 拆分 + 符号化输出，有利于检验中间结果（打分是否正确），并行优化各个打分专家。同时 `Python 符号决策` 也可以配合打分误差模型，按搜索算法快速优化程序。
+
 ### 2.1 Agent 解释语义，脚本保存状态、计算符号
 
-Agent 负责读懂事件，Python 负责状态持久化、指标投影和约束检查。以 Leader 统一判断阶段为例，我们把当前状态转换为文字约束，让 Leader 看到的是事件本身与需要遵守的规则：
+Agent 负责读懂事件，Python 负责保存状态、计算符号。以 Leader 统一判断阶段为例，我们把当前状态转换为文字约束，让 Leader 看到的是事件本身与需要遵守的规则：
 
 ```json
 {
@@ -54,7 +77,7 @@ Agent 负责读懂事件，Python 负责状态持久化、指标投影和约束�
 }
 ```
 
-同一事件的 `sim-career observe` 原始返回则包含状态数值、会话信息与选项元数据（以下仅保留部分字段）：
+同一事件的 `sim-career observe` 原始返回则包含状态数值、会话信息与选项元数据：
 
 ```json
 {
@@ -103,4 +126,4 @@ Agent 负责读懂事件，Python 负责状态持久化、指标投影和约束�
 
 ### 2.4 从重复误判中自进化（Token 消耗过多，未做消融验证）
 
-专家应从至少两次误判中寻找典型的错误，提炼通用经验，再对引导问卷做一处最小修订。改动限于问题文案，保留已有有效边界，取值、流程与算式保持固定；无法归纳重复错误时跳过修改。R 为隐藏指标，缺少公开真值，不参与运行时问卷修订。 设计与约束见[自进化机制](solution/design/skills_design.md#73-自进化机制)。
+专家应从至少两次误判中寻找典型的错误，提炼通用经验，再对引导问卷做一处最小修订。改动限于问题文案，脚本所有的符号策略保持固定；无法归纳典型错误时，跳过修改。R 为隐藏指标，缺少公开真值，不参与运行时问卷修订。 设计与约束见[自进化机制](solution/design/skills_design.md#73-自进化机制)。
