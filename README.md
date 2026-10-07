@@ -1,262 +1,102 @@
-# 【华为 openJiuwen】职场长程生存与晋升挑战（CCF BDCI 2026）
+# CCF BDCI 2026「职场长程生存与晋升挑战」比赛的 Solution
 
-[![Documentation](https://img.shields.io/badge/赛题文档-blue?style=for-the-badge&logo=readthedocs&link=https%3A%2F%2Fcareer-emulator.readthedocs.io%2Fen%2Flatest%2Findex.html)](https://career-emulator.readthedocs.io) [![GitCode Dev](https://img.shields.io/badge/%E5%8F%82%E8%B5%9B%E7%94%A8GitCode%E4%BB%93-brown?style=for-the-badge&logo=GitCode)](https://gitcode.com/SushiNinja/CareerSim-BDCI26) [![GitHub Dev](https://img.shields.io/badge/%E5%8F%82%E8%B5%9B%E7%94%A8GitHub%E4%BB%93-black?style=for-the-badge&logo=GitHub)](https://github.com/openJiuwen-ai/CareerSim-BDCI26)
+## 1. 比赛简介
 
-本赛题是一个面向 Agent 的职场模拟游戏。你要扮演一名刚入职业务研发组的员工，在 48 个月里处理剧情事件、分配季度体力、选择主行动，并努力在健康、尊严、技能、人脉、产出与财富之间维系脆弱的平衡。
+[华为 openJiuwen 职场长程生存与晋升挑战](https://www.xir.cn/competition/1165)要求 Agent 在 48 个月的职业模拟中处理剧情事件、分配季度行动、通过绩效考核并争取晋升，同时管理健康、尊严、技能、人脉、产出、财富与隐藏风险。我们使用 JiuwenSwarm 多 Agent 协作与 Python 脚本构建方案，以活满 48 个月并提高终局分数为目标。规则见[比赛文档](https://career-emulator.readthedocs.io)。
 
-赛题官方页面：<https://www.xir.cn/competition/1165>
+## 2. 我们的方法
 
-赛题文档网址：<https://career-emulator.readthedocs.io>
+```mermaid
+flowchart TB
+    E["当前事件与前情"] --> V{"官方已给数值？"}
+    V -->|有| P
+    V -->|无| T
 
-## 前置工具
+    T["多专家并行作答引导问卷<br/>O 绩效 · N 人脉 · S 技能<br/>HW 健康与财富 · R 隐患"]
+    T -->|结构化指标预测| P["Python 符号决策<br/>红线保护 · 封顶折价 · 晋升前瞻 · 季度规划"]
+    P --> C{"误差扰动后<br/>推荐仍稳定？"}
 
-本项目使用 [uv](https://docs.astral.sh/uv/) 管理 Python 依赖和虚拟环境，使用 `make` 简化常用操作。
+    C -->|稳定| A["推荐选项 + notes<br/>Leader 原样执行"]
+    C -->|不稳定或结构性死局| B["原题 + 前情 + 当前状态约束<br/>Leader 独立纠偏"]
+    A --> X["执行行动"]
+    B --> X
+    X --> R["脚本复核实际变化<br/>保存状态与误判历史"]
+    R --> E
+    R -.->|归纳重复误判，修订问卷<br/>自进化收益未验证| T
 
-<details>
-<summary>安装 <code>make</code></summary>
-
-#### Windows
-
-使用包管理器 [Chocolatey](https://docs.chocolatey.org/en-us/choco/setup/#more-install-options)，执行 `choco install make` 安装 `make`。
-
-#### macOS
-
-若已安装 Xcode，可运行 `xcode-select --install` 安装 Xcode 命令行工具，其中包含 `make`。或使用包管理器 [Homebrew](https://brew.sh)，执行 `brew install make` 安装。
-
-#### Linux
-
-运行 `sudo apt update` 更新包列表，然后运行 `sudo apt install make` 安装 `make`；或安装 `sudo apt install build-essential`，它会安装包括 `make` 在内的常用开发工具。
-
-</details>
-
-## 快速开始
-
-### 1. 安装依赖
-
-```bash
-make sync
+    classDef semantic fill:#ede9fe,stroke:#7c3aed,color:#3b0764
+    classDef symbolic fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
+    classDef route fill:#fef3c7,stroke:#d97706,color:#78350f
+    classDef action fill:#dcfce7,stroke:#16a34a,color:#14532d
+    class T semantic
+    class P,R symbolic
+    class V,C,B route
+    class A,X action
 ```
 
-该命令会安装 [career-emulator](https://pypi.org/project/career-emulator/)、`uv`，并同步本项目的全部依赖。
+完整设计见[方案设计](solution/design/skills_design.md)与[逐轮决策报告](solution/design/decision_report.md)。
 
-当前固定使用 [WorkSwarm 0.2.8b1（JiuwenSwarm 新包名）](https://github.com/openJiuwen-ai/jiuwenswarm/releases/tag/v0.2.8.beta1)
-及该版本指定的 openJiuwen `8f9f112698d5580b749158b21b1a89a54e16a8f9`（版本号 `0.1.19`），支持 Python 3.11–3.13。
-`jiuwenswarm-*` 命令和 Python 导入名仍保持不变。`uv.lock` 固定完整依赖及官方 wheel 的 SHA256；
-使用 `uv sync --locked` 复现安装，openJiuwen 源码只需首次构建，后续复用 uv 缓存。
-保留并更新了 coach 的兼容补丁；每次 setup 会幂等应用。会话 metadata 原子写入及按 run 隔离 journal 已使用上游实现。
-新环境测试前先执行 `uv run career-emulator update --source distribution --split dev` 初始化开发数据集。
+### 2.1 Agent 解释语义，脚本保存状态、计算符号
 
-> **建议**：[jiuwenswarm](https://openjiuwen.com/jiuwenswarm) 和 [career-emulator](https://pypi.org/project/career-emulator/) 都通过当前仓库目录的 [uv](https://docs.astral.sh/uv/) 虚拟环境管理，所有命令统一使用 `uv run` 前缀调用。请避免将它们安装到全局 Python 环境或其他虚拟环境中，以免冲突。
-
-### 2. 配置环境
-
-先把 `.env.example` 复制为 `.env`，填入 API 配置：
-
-```bash
-cp .env.example .env
-```
-
-`.env` 示例包含以下变量：
-
-```bash
-API_BASE=""
-API_KEY=""
-MODEL_NAME="deepseek-flash"
-```
-
-Jiuwen Player 在 coach、play、benchmark 和其他测试中统一使用 `deepseek-flash`。Runner 通过 `JIUWEN_PLAYER_MODEL` 固定模型，`.env` 中的 `MODEL_NAME` 仅保持示例一致，不覆盖它；reload 时也会同步服务进程中的模型配置。
-
-然后运行 setup，它会自动初始化 JiuwenSwarm 命名实例 `career_emu`，并将上述配置写入实例目录：
-
-```bash
-make setup
-```
-
-### 3. 启动 JiuwenSwarm
-
-在一个独立终端中启动 `career_emu` 实例：
-
-```bash
-make start-jiuwen
-```
-
-启动后可以随时查看各实例的运行状态：
-
-```bash
-uv run jiuwenswarm-start --list
-```
-
-输出示例：
-
-```text
-INSTANCE     STATUS     PID     WORKSPACE                                          PORTS
---------------------------------------------------------------------------------
-default      stopped  -       /Users/you/.jiuwenswarm                              18092/19000/19001/5173
-career_emu   running  58987   /Users/you/.jiuwenswarm-instances/career_emu         19092/20000/20001/6173
-```
-
-其中 `PORTS` 列的最后一个端口是前端 UI 地址。例如上面 `career_emu` 实例的端口为 `6173`，在浏览器访问 `http://localhost:6173` 即可打开 JiuwenSwarm 网页端界面。
-
-#### 推荐：安装为用户级自动恢复服务
-
-`career_emu` 是承载 AgentServer、Gateway、WebChannel 和 MCP 子进程的命名 JiuwenSwarm 实例。推荐交给 `systemd --user` 管理，避免终端关闭或单个子进程退出导致比赛失败：
-
-```bash
-make service-install
-make service-status
-```
-
-服务会在启动前刷新 MCP 配置，把项目 `.venv/bin` 加入 PATH，并在异常退出后自动重启。查看实时日志：
-
-```bash
-make service-logs
-```
-
-手动重启使用 `make service-restart`；安装服务后不要再同时运行 `make start-jiuwen`，避免两个实例争用端口。
-
-`make play` 会先停止专用服务、删除旧 `.agent_teams` view，再启动服务并创建新团队；因此大幅修改 solution 后也不会沿用旧团队成员、任务或消息。若尚未安装用户服务，先运行 `make service-install`。
-
-### 4. 开始一局新比赛
-
-```bash
-make play
-```
-
-`make play` 每次都会通过 `new_game` 创建新的比赛 `session_id`，并在安全停止服务后重建专用的 `.agent_teams/team.db`。只做第 1 月协作验收时运行：
-
-```bash
-make play PLAY_ARGS='--stop-after-month 1 --timeout-s 900'
-```
-
-### 5. 查看分数
-
-```bash
-make score
-```
-
-### 6. 生成可读战报
-
-从最近一次运行的 `events-*.jsonl` 生成 Markdown 复盘：
-
-```bash
-make replay
-```
-
-### Coach 单步控制
-
-若需要在比赛途中逐事件检查 JiuwenSwarm 的表现，可用不暴露给 Player 的旁路
-`career_sim_runner.coach` 控制器。新开的 coach 比赛默认只推进一个事件，之后每次
-显式执行一步；这些命令不会注册为 Career Emulator MCP 工具：
-
-```bash
-make coach-start                              # 输出新的 jiuwen_player_session_id
-make coach-step JIUWEN_PLAYER_SESSION_ID=<id> # 只推进一个事件
-make coach-inspect JIUWEN_PLAYER_SESSION_ID=<id>            # 查看当前题目、近期决策和状态迁移
-make coach-inspect JIUWEN_PLAYER_SESSION_ID=<id> INSPECT_ARGS="-i 2 -j 4"  # 查看第 2 到第 4 轮
-make coach-withdraw JIUWEN_PLAYER_SESSION_ID=<id>           # 撤回最近一次 player step
-make coach-withdraw JIUWEN_PLAYER_SESSION_ID=<id> WITHDRAW_ARGS="--checkpoint-round 12" # 回到指定轮次
-```
-
-`make play` 的原有连续比赛流程保持不变。Coach 控制器的详细参数见
-[`career_sim_runner/coach/README.md`](career_sim_runner/coach/README.md)。
-
-Observation Translator 可用固定顺序的官方事件节点单独评测，不执行任何游戏动作：
-
-```bash
-make translation-benchmark TRANSLATION_BENCHMARK_ARGS="--limit 20"
-```
-
-输出写入 `.career_sim_runner/translation_benchmark/`；详细格式见
-[`career_sim_runner/translation_benchmark/README.md`](career_sim_runner/translation_benchmark/README.md)。
-
-## 赛题玩法
-
-每个月，系统会推进时间、生成剧情事件，并让你基于当前状态做选择。每逢季度末，你还会拿到 3 点 `Energy` 处理体力行动，再额外选择 1 个季度主行动。每 6 个月进行一次绩效评估并结算绩效奖金。
-
-- **剧情选择** 决定短期状态变化，也会改变后续事件走向。
-- **季度行动** 是你主动调节职业轨迹的主要抓手。
-- **长线规划** 很多风险不会当月就爆，往往是攒着以后一起算总账。
-
-整局游戏总长 48 个月。活满 48 个月后，系统会综合职级、财富、身心状态、技能、风险控制和同事关系给出结局评分（从 D 到 S）。
-
-## 交付件
-
-参赛团队需要使用 [JiuwenSwarm](https://openjiuwen.com/jiuwenswarm) 构建 Agent，并开发一个或多个 [Skill](https://agentskills.io) 来辅助 Agent 进行游戏。最终把 Skill 文件夹统一打包成单个 `zip` 作为交付件。
-
-提交目录结构如下：
-
-```text
-solution/
-  manifest.json
-  README.md
-  design/
-    skills_design.md
-    decision_report.md
-  skills/
-    environment-perception/
-      SKILL.md
-    risk-analysis/
-      SKILL.md
-    ...
-```
-
-其中 `manifest.json` 记录团队名和提交件元信息：
+Agent 负责读懂事件，Python 负责状态持久化、指标投影、约束检查和行动比较。正常推荐时，Leader 只需要接收编号并填写 notes：
 
 ```json
 {
-  "team": "your-team-name",
-  "name": "your-submission-name",
-  "mode": "agent",
-  "instruction": ""
+  "推荐选项": 2,
+  "notes": "L2第7月；名义预测绩效产出+2；按红线、晋升门槛与净值选择。"
 }
 ```
 
-`mode` 字段决定 [JiuwenSwarm](https://openjiuwen.com/jiuwenswarm) 以何种模式运行你的 Agent，支持以下几种：
+相比之下，把完整上下文直接交给 Leader 的信息包会像这样（简化示例）：
 
-| mode | 说明 |
-|---|---|
-| `agent` | 单 Agent 模式。支持通用工具、技能与 MCP 的调用，并挂载任务规划、子代理编排与技能演进等能力；记忆为被动模式，按需读写。|
-| `team` | 团队协作模式。启动多 Agent 协作，Leader 统筹任务拆解与调度，Teammate 按角色分工并行执行。团队成员继承工具和 MCP 能力，适合需要多智能体协同的场景。|
-
-## 一些方便的 Makefile 命令
-
-| 说明 | Makefile 快捷命令 |
-|---|---|
-| 通过 `uv` 安装项目依赖 | `make sync` |
-| 初始化环境、配置 JiuwenSwarm 实例 | `make setup` |
-| 启动 JiuwenSwarm 服务（`career_emu` 实例） | `make start-jiuwen` |
-| 挂载当前 `solution` 文件夹内的技能、并连接 JiuwenSwarm 进行一局游戏 | `make play` |
-| 重新读取上次运行的结局分数 | `make score` |
-
-也可直接使用 `career_sim_runner` 的 CLI 接口（以验证 `solution` 内容的 validate 命令为例）：
-
-```bash
-uv run python -m career_sim_runner validate --submission solution
+```json
+{
+  "state": {"L": 2, "O": 4, "S": 18, "N": 6, "H": 8, "D": 5, "W": 4, "R": 0},
+  "month": 7,
+  "current_event": {"title": "同事求助", "description": "交付在即，同事请你帮忙排查故障。"},
+  "options": [
+    {"choice": 1, "action": "帮忙排查", "metrics": {"O": -1, "N": 1}},
+    {"choice": 2, "action": "完成自己的关键交付", "metrics": {"O": 2}}
+  ],
+  "守红线": "无已触发项",
+  "补短板": "绩效产出差1分晋升；专业技能与人脉恰好达标"
+}
 ```
 
-## 运行产物
+精简后的接口把读题、维护状态、计算收益与执行行动的职责分开，让 Leader 专注于当前动作。只有进入纠偏时，才交回原题与前情；此时不附带预测增量或推荐偏好。
 
-每次运行产生的输出均会出现在 `.career_sim_runner/career_emu/` 目录下：
+### 2.2 多专家独立打分，用问卷拆解语义判断
 
-```text
-.career_sim_runner/career_emu/
-  active_install.json        # 当前挂载的提交件
-  career_emulator.sqlite3    # 共享状态数据库
-  emulator_logs/             # setup/兼容模式下的默认日志目录
-  outputs/
-    <solution_name>/<timestamp>/ # 每次运行的 transcript、events、score 与模拟器日志
-      transcript-*.log       # 对话记录
-      events-*.jsonl         # 结构化事件流
-      <session_id>.log       # Career Emulator 模拟器日志
-      score_report.json      # 结局评分报告
-```
+五位专家各自负责 O、N、S、HW、R，在独立上下文中并行作答。比如绩效产出专家依次判断：属于核心业务还是其他事务、成果与进度如何变化、影响幅度有多大。脚本将答案映射为各选项的 O 增量，误判也能追溯到具体问题。
 
-## 比赛交互方式
+查看[绩效产出引导问卷](solution/skills/observe-decide-review/scripts/questionnaires/O.json)与[专家判断原则](solution/skills/observe-decide-review/stages/translate_O.md)。
 
-比赛通过 [career-emulator](https://pypi.org/project/career-emulator/) 提供的 [MCP](https://modelcontextprotocol.io) 服务与 Agent 交互。常用能力包括：
+### 2.3 用固定规则保持长程一致性
 
-- `new_game`：开一局新游戏。
-- `observe(session_id)`：读取当前状态、当前事件和可选项。
-- `take_action(session_id, choice, notes)`：执行选择，并把备注写进日志。
-- `show_employee_handbook()`：获取公开手册。
-- `check_latest_logs(session_id)`：读取最近日志。
+脚本按当前职级与月份检查红线、比较晋升缺口，并对封顶收益和资格线回退定价；季度行动通过组合前瞻规划，每次仍只推荐当前的一步。健康、尊严与财富进入低位保护后，其他收益不能换取进一步削减它们。
+
+### 2.4 建模打分误差，让可信度决定谁来拍板
+
+我们从测试数据中的专家预测与真实增量建立条件误差分布，区分指标、预测方向和幅度。离线测试在真实增量上采样误差，模拟不准确的翻译输入；运行时围绕预测增量采样可能的实际效果，重复执行符号决策，以推荐保持不变的比例衡量稳定率。
+
+稳定率低于阈值时，Leader 根据原题、前情与当前状态约束独立判断；否则执行专家量化后的脚本推荐。阈值越高，越多事件进入 Leader 纠偏。这里的可信度是模型下的决策稳定率。
+
+下表为误差组的量化原分中位数（满分 100，每组 128 局，两类路由阈值取相同值）：
+
+| 可信度阈值 | 量化原分中位数 |
+|---|---:|
+| 0.9 | 53.750 |
+| 0.8 | 61.975 |
+| 0.75 | 64.950 |
+| **0.7** | **65.705** |
+| 0.65 | 65.580 |
+| 0.6 | 62.810 |
+| 0.5 | 60.450 |
+
+这组实验中，偏向 Leader 统一判断的高阈值和偏向专家推荐的低阈值，都未取得最佳分数；**选择性纠偏的混合方案表现更好**。路由机制与实验记录见[决策报告](solution/design/decision_report.md#33-稳定率如何改变行动)。
+
+### 2.5 从重复误判中自进化（提分收益未验证）
+
+专家应从至少两次误判中寻找共同原因，提炼通用经验，再对引导问卷做一处最小修订。改动限于问题文案，保留已有有效边界，取值、流程与算式保持固定；无法归纳重复错误时跳过修改。R 为隐藏指标，缺少公开真值，不参与运行时问卷修订。
+
+机制已实现，尚未验证其提分收益；设计与约束见[自进化机制](solution/design/skills_design.md#73-自进化机制)。
