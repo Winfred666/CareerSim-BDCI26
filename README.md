@@ -44,14 +44,9 @@ flowchart TD
     L --> M[读取行动日志\n写入复核记录*]
     M --> A
 
-    style E1 fill:#dbeafe,stroke:#3b82f6
-    style E2 fill:#dbeafe,stroke:#3b82f6
-    style E3 fill:#dbeafe,stroke:#3b82f6
-    style E4 fill:#dbeafe,stroke:#3b82f6
-    style E5 fill:#dbeafe,stroke:#3b82f6
-    style I fill:#fef3c7,stroke:#f59e0b
-    style L fill:#d1fae5,stroke:#10b981
 ```
+
+> **图例**：`*` 表示由 Python 脚本完成的步骤；`🤖` 表示由 AI Agent 完成的步骤。
 
 完整设计见[方案设计](solution/design/skills_design.md)与[逐轮决策报告](solution/design/decision_report.md)。
 
